@@ -63,8 +63,7 @@ func (uc *UploadUseCaseImpl) UploadSolution(ctx context.Context, studentID, labI
 	}
 	defer dst.Close()
 
-	// TODO: добавить отмену копирования по контексту
-	if _, err := io.Copy(dst, src); err != nil {
+	if err = uc.copyWithContext(ctx, dst, src); err != nil {
 		return fmt.Errorf("copy archive content: %w", err)
 	}
 
@@ -80,7 +79,7 @@ func (uc *UploadUseCaseImpl) UploadSolution(ctx context.Context, studentID, labI
 			zap.Any("pipilineReq", req),
 		)
 	case <-ctx.Done():
-		return
+		return ctx.Err()
 	}
 
 	uc.logger.Info("solution was uploaded",
@@ -113,7 +112,7 @@ func (uc *UploadUseCaseImpl) UploadScript(ctx context.Context, teacherID int, sc
 	}
 	defer dst.Close()
 
-	if _, err := io.Copy(dst, src); err != nil {
+	if err = uc.copyWithContext(ctx, dst, src); err != nil {
 		return fmt.Errorf("copy archive content: %w", err)
 	}
 
@@ -124,4 +123,29 @@ func (uc *UploadUseCaseImpl) UploadScript(ctx context.Context, teacherID int, sc
 	)
 
 	return nil
+}
+
+type ContextReader struct {
+	ctx context.Context
+	r   io.Reader
+}
+
+func (cr *ContextReader) Read(p []byte) (n int, err error) {
+	select {
+	case <-cr.ctx.Done():
+		return 0, cr.ctx.Err()
+	default:
+		return cr.r.Read(p)
+	}
+}
+
+func (uc *UploadUseCaseImpl) copyWithContext(ctx context.Context, dst io.Writer, src io.Reader) error {
+	ctxReader := &ContextReader{
+		ctx: ctx,
+		r:   src,
+	}
+
+	_, err := io.Copy(dst, ctxReader)
+
+	return err
 }

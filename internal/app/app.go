@@ -3,11 +3,18 @@ package app
 import (
 	"context"
 	"net/http"
+	"time"
 
+	_ "github.com/4otis/geonotify-service/docs"
 	"github.com/4otis/neurolab-service/config"
+	"github.com/4otis/neurolab-service/internal/cases"
+	"github.com/4otis/neurolab-service/internal/entity"
+	httphandler "github.com/4otis/neurolab-service/internal/handler"
 	"github.com/4otis/neurolab-service/pkg/logger"
 	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"go.uber.org/zap"
 )
 
@@ -16,6 +23,7 @@ type App struct {
 	logger     *zap.Logger
 	httpServer *http.Server
 	dbPool     *pgxpool.Pool
+	pipelineCh chan entity.PipelineReq
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -29,7 +37,12 @@ func New(cfg *config.Config) (*App, error) {
 		logger: zapLogger,
 	}
 
-	if err := app.initDB(); err != nil {
+	// if err := app.initDB(); err != nil {
+	// 	return nil, err
+	// }
+
+	buf := 1000 // pipelineCh buffer size
+	if err := app.initPipelineProcessor(buf); err != nil {
 		return nil, err
 	}
 
@@ -38,14 +51,6 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	return app, nil
-}
-
-func (a *App) Run() error {
-	return nil
-}
-
-func (a *App) Stop() {
-
 }
 
 func (a *App) initDB() error {
@@ -65,36 +70,63 @@ func (a *App) initDB() error {
 	return nil
 }
 
+func (a *App) initPipelineProcessor(bufSize int) error {
+	a.pipelineCh = make(chan entity.PipelineReq, bufSize)
+
+	// TODO: инициализация воркер пула
+	return nil
+}
+
 func (a *App) initUseCasesAndHandlers() error {
-	// incidentRepo := postgres.NewIncidentRepo(a.dbPool)
 
-	// locationUseCase := cases.NewLocationUseCase(
-	// 	incidentRepo,
-	// 	checkRepo,
-	// 	webhookRepo,
-	// 	a.redisClient,
-	// 	a.logger,
-	// 	a.config.CacheTTLMinutes,
-	// )
+	uploadUseCase := cases.NewUploadUseCase(
+		a.logger,
+		a.pipelineCh,
+		a.config.SolutionsDir,
+		a.config.ScriptsDir,
+	)
 
-	// httpIncidentHandler := httphandler.NewIncidentHandler(
-	// 	a.logger,
-	// 	incidentUseCase,
-	// )
+	httpStudentHandler := httphandler.NewStudentHandler(
+		a.logger,
+		uploadUseCase,
+	)
 
 	r := chi.NewRouter()
 
-	// r.Use(logger.Log(a.logger))
-	// r.Use(middleware.Timeout(30 * time.Second))
+	r.Use(logger.Log(a.logger))
+	r.Use(middleware.Timeout(30 * time.Second))
 
-	// r.Post("/api/v1/location/check", httpLocationHandler.LocationCheck)
+	r.Route("/api/v1/homepage", func(r chi.Router) {
 
-	// r.Route("/api/v1/incidents", func(r chi.Router) {
+		r.Route("/student/{student_id}", func(r chi.Router) {
 
-	// 	r.Post("/", httpIncidentHandler.IncidentCreate)
-	// })
+			r.Route("/course/{course_id}", func(r chi.Router) {
 
-	// r.Get("/swagger/*", httpSwagger.WrapHandler)
+				r.Route("/lab/{lab_id}", func(r chi.Router) {
+
+					r.Post("/upload", httpStudentHandler.UploadLab)
+				})
+			})
+		})
+
+		r.Route("/teacher/{teacher_id}", func(r chi.Router) {
+
+			r.Route("/course/{course_id}", func(r chi.Router) {
+
+				r.Route("/lab/{lab_id}", func(r chi.Router) {
+
+					// TODO: замени на соответствующие методы TeacherHandler
+					r.Patch("/save", httpStudentHandler.UploadLab)
+					r.Get("/generate", httpStudentHandler.UploadLab)
+					r.Get("/scripts", httpStudentHandler.UploadLab)
+					r.Post("/upload", httpStudentHandler.UploadLab)
+				})
+			})
+		})
+
+	})
+
+	r.Get("/swagger/*", httpSwagger.WrapHandler)
 
 	a.httpServer = &http.Server{
 		Addr:    ":" + a.config.HTTPPort,
@@ -102,4 +134,12 @@ func (a *App) initUseCasesAndHandlers() error {
 	}
 
 	return nil
+}
+
+func (a *App) Run() error {
+	return nil
+}
+
+func (a *App) Stop() {
+
 }

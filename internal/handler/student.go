@@ -106,7 +106,10 @@ func (h *StudentHandler) UploadLab(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := r.ParseMultipartForm(100 << 20); err != nil {
-		http.Error(w, "file too large or invalid form data", http.StatusBadRequest)
+		http.Error(w, "file too large or invalid form data: "+err.Error(), http.StatusBadRequest)
+		h.logger.Debug("failed to parse multipart-form",
+			zap.Error(err),
+		)
 		return
 	}
 

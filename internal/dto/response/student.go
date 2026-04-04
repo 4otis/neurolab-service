@@ -19,7 +19,7 @@ type LabInfo struct {
 	ID          string `json:"id"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
-	TestScript  string `json:"test_script"`
+	TestScript  string `json:"test_script"` //PIPELINE!
 }
 
 // Ответ со статусом проверки

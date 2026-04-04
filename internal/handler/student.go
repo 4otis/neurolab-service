@@ -1,24 +1,32 @@
-package handlers
+package handler
 
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/4otis/neurolab-service/internal/cases"
 	"github.com/4otis/neurolab-service/internal/dto/response"
+	"github.com/go-chi/chi"
 	"go.uber.org/zap"
 )
 
 type StudentHandler struct {
-	logger *zap.Logger
-	uc     cases.StudentUseCase
+	logger        *zap.Logger
+	uploadUseCase cases.UploadUseCase
+	// studentUseCase cases.StudentUseCase
 }
 
-func NewStudentHandler(logger *zap.Logger, uc cases.StudentUseCase) *StudentHandler {
+func NewStudentHandler(
+	logger *zap.Logger,
+	uploadUseCase cases.UploadUseCase,
+	// studentUseCase cases.StudentUseCase,
+) *StudentHandler {
 	return &StudentHandler{
-		logger: logger,
-		uc:     uc,
+		logger:        logger,
+		uploadUseCase: uploadUseCase,
+		// studentUseCase: studentUseCase,
 	}
 }
 
@@ -43,27 +51,28 @@ func (h *StudentHandler) GetAvailableLabs(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	labs, err := h.uc.GetAvailableLabs(r.Context(), studentID)
-	if err != nil {
-		h.logger.Error("failed to get available labs",
-			zap.String("student_id", studentID),
-			zap.Error(err))
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
+	// labs, err := h.studentUseCase.GetAvailableLabs(r.Context(), studentID)
+	// if err != nil {
+	// 	h.logger.Error("failed to get available labs",
+	// 		zap.String("student_id", studentID),
+	// 		zap.Error(err))
+	// 	http.Error(w, "internal error", http.StatusInternalServerError)
+	// 	return
+	// }
 
-	var labInfos []response.LabInfo
-	for _, lab := range labs {
-		labInfos = append(labInfos, response.LabInfo{
-			ID:          lab.ID,
-			Title:       lab.Title,
-			Description: lab.Description,
-			TestScript:  lab.TestScript,
-		})
-	}
+	// //TODO: вынести в отдельную функцию transformLabsToDto
+	// var labInfos []response.LabInfo
+	// for _, lab := range labs {
+	// 	labInfos = append(labInfos, response.LabInfo{
+	// 		ID:          lab.ID,
+	// 		Title:       lab.Title,
+	// 		Description: lab.Description,
+	// 		TestScript:  lab.TestScript,
+	// 	})
+	// }
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response.LabsListResponse{Labs: labInfos})
+	// json.NewEncoder(w).Encode(response.LabsListResponse{Labs: labInfos})
 }
 
 // UploadLab загружает ZIP архив с решением лабораторной работы
@@ -84,20 +93,20 @@ func (h *StudentHandler) GetAvailableLabs(w http.ResponseWriter, r *http.Request
 // @Failure      500             {string}  string  "Внутренняя ошибка сервера"
 // @Router       /api/student/{student_id}/upload [post]
 func (h *StudentHandler) UploadLab(w http.ResponseWriter, r *http.Request) {
-	studentID := r.PathValue("student_id")
-	if studentID == "" {
-		http.Error(w, "student_id is required", http.StatusBadRequest)
+	studentID, err := strconv.Atoi(chi.URLParam(r, "student_id"))
+	if err != nil {
+		http.Error(w, "student_id required/not valid", http.StatusBadRequest)
+		return
+	}
+
+	labID, err := strconv.Atoi(chi.URLParam(r, "lab_id"))
+	if err != nil {
+		http.Error(w, "lab_id required/not valid", http.StatusBadRequest)
 		return
 	}
 
 	if err := r.ParseMultipartForm(100 << 20); err != nil {
 		http.Error(w, "file too large or invalid form data", http.StatusBadRequest)
-		return
-	}
-
-	labID := r.FormValue("lab_id")
-	if labID == "" {
-		http.Error(w, "lab_id is required", http.StatusBadRequest)
 		return
 	}
 
@@ -108,13 +117,14 @@ func (h *StudentHandler) UploadLab(w http.ResponseWriter, r *http.Request) {
 	}
 	defer zipFile.Close()
 
-	err = h.uc.UploadSolution(r.Context(), studentID, labID, zipFile)
+	err = h.uploadUseCase.UploadSolution(r.Context(), studentID, labID, zipFile)
 	if err != nil {
 		h.logger.Error("failed to upload lab",
-			zap.String("student_id", studentID),
-			zap.String("lab_id", labID),
+			zap.Int("student_id", studentID),
+			zap.Int("lab_id", labID),
 			zap.Error(err))
 
+		//TODO: выделить ошибки на уровне с бизнес логикой и добавить их обработку через errors.Is
 		switch {
 		case err.Error() == "student not found" || err.Error() == "lab not found":
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -124,10 +134,7 @@ func (h *StudentHandler) UploadLab(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logger.Info("lab uploaded successfully",
-		zap.String("student_id", studentID),
-		zap.String("lab_id", labID))
-
+	// TODO: обсудить нужен ли нам детализированный ответ?
 	resp := response.UploadSolutionResponse{
 		Status:     "ok",
 		Message:    "Lab uploaded successfully",
@@ -139,59 +146,60 @@ func (h *StudentHandler) UploadLab(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-// GetSubmissionResult возвращает результат проверки лабораторной работы
-// @Summary      Получить результат проверки
-// @Description  Получить статус по загруженной лабораторной работе
-// @Tags         student
-// @Accept       json
-// @Produce      json
-// @Security     ApiKeyAuth
-// @Param        student_id      path      string  true  "ID студента"
-// @Param        submission_id   query     string  true  "ID сдачи"
-// @Success      200             {object}  response.SubmissionStatusResponse
-// @Failure      400             {string}  string  "Неверный формат данных"
-// @Failure      401             {string}  string  "Не авторизован"
-// @Failure      403             {string}  string  "Доступ запрещен"
-// @Failure      404             {string}  string  "Сдача не найдена"
-// @Failure      500             {string}  string  "Внутренняя ошибка сервера"
-// @Router       /api/student/{student_id}/submission [get]
-func (h *StudentHandler) GetSubmissionResult(w http.ResponseWriter, r *http.Request) {
-	studentID := r.PathValue("student_id")
-	if studentID == "" {
-		http.Error(w, "student_id is required", http.StatusBadRequest)
-		return
-	}
+// TODO: не уверен, что система с нотификашками вообще будет работать так просто
+// // GetSubmissionResult возвращает результат проверки лабораторной работы
+// // @Summary      Получить результат проверки
+// // @Description  Получить статус по загруженной лабораторной работе
+// // @Tags         student
+// // @Accept       json
+// // @Produce      json
+// // @Security     ApiKeyAuth
+// // @Param        student_id      path      string  true  "ID студента"
+// // @Param        submission_id   query     string  true  "ID сдачи"
+// // @Success      200             {object}  response.SubmissionStatusResponse
+// // @Failure      400             {string}  string  "Неверный формат данных"
+// // @Failure      401             {string}  string  "Не авторизован"
+// // @Failure      403             {string}  string  "Доступ запрещен"
+// // @Failure      404             {string}  string  "Сдача не найдена"
+// // @Failure      500             {string}  string  "Внутренняя ошибка сервера"
+// // @Router       /api/student/{student_id}/submission [get]
+// func (h *StudentHandler) GetSubmissionResult(w http.ResponseWriter, r *http.Request) {
+// 	studentID := r.PathValue("student_id")
+// 	if studentID == "" {
+// 		http.Error(w, "student_id is required", http.StatusBadRequest)
+// 		return
+// 	}
 
-	submissionID := r.URL.Query().Get("submission_id")
-	if submissionID == "" {
-		http.Error(w, "submission_id is required", http.StatusBadRequest)
-		return
-	}
+// 	submissionID := r.URL.Query().Get("submission_id")
+// 	if submissionID == "" {
+// 		http.Error(w, "submission_id is required", http.StatusBadRequest)
+// 		return
+// 	}
 
-	submission, err := h.uc.GetSubmission(r.Context(), submissionID)
-	if err != nil {
-		h.logger.Error("failed to get submission",
-			zap.String("submission_id", submissionID),
-			zap.Error(err))
-		http.Error(w, "submission not found", http.StatusNotFound)
-		return
-	}
+// 	submission, err := h.uc.GetSubmission(r.Context(), submissionID)
+// 	if err != nil {
+// 		h.logger.Error("failed to get submission",
+// 			zap.String("submission_id", submissionID),
+// 			zap.Error(err))
+// 		http.Error(w, "submission not found", http.StatusNotFound)
+// 		return
+// 	}
 
-	if submission.StudentID != studentID {
-		h.logger.Warn("access denied to submission",
-			zap.String("student_id", studentID),
-			zap.String("submission_owner", submission.StudentID),
-			zap.String("submission_id", submissionID))
-		http.Error(w, "access denied", http.StatusForbidden)
-		return
-	}
+// 	if submission.StudentID != studentID {
+// 		h.logger.Warn("access denied to submission",
+// 			zap.String("student_id", studentID),
+// 			zap.String("submission_owner", submission.StudentID),
+// 			zap.String("submission_id", submissionID))
+// 		http.Error(w, "access denied", http.StatusForbidden)
+// 		return
+// 	}
 
-	resp := response.SubmissionStatusResponse{
-		SubmissionID: submission.ID,
-		Status:       submission.Status,
-		UploadedAt:   submission.SubmittedAt,
-	}
+// 	resp := response.SubmissionStatusResponse{
+// 		SubmissionID: submission.ID,
+// 		Status:       submission.Status,
+// 		UploadedAt:   submission.SubmittedAt,
+// 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
+// 	w.Header().Set("Content-Type", "application/json")
+// 	json.NewEncoder(w).Encode(resp)
+// }

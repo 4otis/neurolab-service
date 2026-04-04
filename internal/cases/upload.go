@@ -16,7 +16,7 @@ var _ UploadUseCase = (*UploadUseCaseImpl)(nil)
 
 type UploadUseCase interface {
 	UploadSolution(ctx context.Context, studentID, labID int, src io.Reader) error
-	UploadScript(ctx context.Context, teacherID int, scriptName string, src io.Reader) error
+	UploadScript(ctx context.Context, scriptName string, src io.Reader) error
 }
 
 type UploadUseCaseImpl struct {
@@ -92,7 +92,7 @@ func (uc *UploadUseCaseImpl) UploadSolution(ctx context.Context, studentID, labI
 	return nil
 }
 
-func (uc *UploadUseCaseImpl) UploadScript(ctx context.Context, teacherID int, scriptName string, src io.Reader) (err error) {
+func (uc *UploadUseCaseImpl) UploadScript(ctx context.Context, scriptName string, src io.Reader) (err error) {
 	tmpDir := filepath.Join(uc.scriptsDir, scriptName)
 	os.RemoveAll(tmpDir)
 	err = os.MkdirAll(tmpDir, 0755)
@@ -119,7 +119,6 @@ func (uc *UploadUseCaseImpl) UploadScript(ctx context.Context, teacherID int, sc
 
 	uc.logger.Info("script was uploaded",
 		zap.String("workdir", tmpDir),
-		zap.Int("teacher_id", teacherID),
 		zap.String("script_name", scriptName),
 	)
 

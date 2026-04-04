@@ -91,39 +91,50 @@ func (a *App) initUseCasesAndHandlers() error {
 		uploadUseCase,
 	)
 
+	httpTeacherHandler := httphandler.NewTeacherHandler(
+		a.logger,
+		uploadUseCase,
+	)
+
 	r := chi.NewRouter()
 
 	r.Use(logger.Log(a.logger))
 	r.Use(middleware.Timeout(30 * time.Second))
 
-	r.Route("/api/v1/homepage", func(r chi.Router) {
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Route("/homepage", func(r chi.Router) {
 
-		r.Route("/student/{student_id}", func(r chi.Router) {
+			r.Route("/student/{student_id}", func(r chi.Router) {
 
-			r.Route("/course/{course_id}", func(r chi.Router) {
+				r.Route("/course/{course_id}", func(r chi.Router) {
 
-				r.Route("/lab/{lab_id}", func(r chi.Router) {
+					r.Route("/lab/{lab_id}", func(r chi.Router) {
 
-					r.Post("/upload", httpStudentHandler.UploadLab)
+						r.Post("/upload", httpStudentHandler.UploadLab)
+					})
 				})
 			})
-		})
 
-		r.Route("/teacher/{teacher_id}", func(r chi.Router) {
+			r.Route("/teacher/{teacher_id}", func(r chi.Router) {
 
-			r.Route("/course/{course_id}", func(r chi.Router) {
+				r.Route("/course/{course_id}", func(r chi.Router) {
 
-				r.Route("/lab/{lab_id}", func(r chi.Router) {
+					r.Route("/lab/{lab_id}", func(r chi.Router) {
 
-					// TODO: замени на соответствующие методы TeacherHandler
-					r.Patch("/save", httpStudentHandler.UploadLab)
-					r.Get("/generate", httpStudentHandler.UploadLab)
-					r.Get("/scripts", httpStudentHandler.UploadLab)
-					r.Post("/upload", httpStudentHandler.UploadLab)
+						// TODO: замени на соответствующие методы TeacherHandler
+						r.Patch("/save", httpStudentHandler.UploadLab)
+						r.Get("/generate", httpStudentHandler.UploadLab)
+						r.Get("/scripts", httpStudentHandler.UploadLab)
+						r.Post("/upload", httpStudentHandler.UploadLab)
+					})
 				})
 			})
+
 		})
 
+		r.Route("/scripts", func(r chi.Router) {
+			r.Post("/upload", httpTeacherHandler.UploadScript)
+		})
 	})
 
 	r.Get("/swagger/*", httpSwagger.WrapHandler)

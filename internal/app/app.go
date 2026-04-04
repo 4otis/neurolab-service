@@ -137,9 +137,34 @@ func (a *App) initUseCasesAndHandlers() error {
 }
 
 func (a *App) Run() error {
+	go func() {
+		a.logger.Info("Starting HTTP server",
+			zap.String("port", a.config.HTTPPort),
+			zap.String("env", a.config.LogLevel))
+
+		if err := a.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			a.logger.Fatal("HTTP server error", zap.Error(err))
+		}
+	}()
+
 	return nil
 }
 
 func (a *App) Stop() {
+	a.logger.Info("Shutting down servers...")
 
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := a.httpServer.Shutdown(ctx); err != nil {
+		a.logger.Error("HTTP server shutdown error", zap.Error(err))
+	}
+
+	if a.dbPool != nil {
+		a.dbPool.Close()
+		a.logger.Info("Database connection closed")
+	}
+
+	a.logger.Sync()
+	a.logger.Info("Servers stopped gracefully")
 }

@@ -67,6 +67,8 @@ func (uc *UploadUseCaseImpl) UploadSolution(ctx context.Context, studentID, labI
 		return fmt.Errorf("copy archive content: %w", err)
 	}
 
+	// if err =
+
 	req := entity.PipelineReq{
 		Path:      tmpDir,
 		StudentID: studentID,
@@ -149,3 +151,28 @@ func (uc *UploadUseCaseImpl) copyWithContext(ctx context.Context, dst io.Writer,
 
 	return err
 }
+
+// func unzip(ctx context.Context, dst io.Writer, src io.Reader) error {
+// 	r, err := zip.OpenReader(filepath)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to open reader (by filepath:%v):%w", filepath, err)
+// 	}
+// 	defer r.Close()
+
+// 	for _, f := range f.File {
+// 		select {
+// 		case <-ctx.Done():
+// 			return ctx.Err()
+// 		default:
+// 		}
+// 		rc, err := f.Open()
+// 		if err != nil {
+// 			return fmt.Errorf("failed to open (file:%v):%w", f.FileHeader.Name, err)
+// 		}
+// 		defer rc.Close()
+// 		_,err = io.Copy(, rc)
+// 		if err != nil {
+// 			return fmt.Errorf("failed to copy:%w", err)
+// 		}
+// 	}
+// }

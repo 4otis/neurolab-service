@@ -9,8 +9,7 @@ type ExecCommandResp struct {
 }
 
 type DockerRepo interface {
-	CreateContainer(ctx context.Context, dockerImage string) error
+	CreateContainer(ctx context.Context, imageName string, mnts []*string) (string, error)
 	DeleteContainer(ctx context.Context, containerID string) error
-	LoadFileToContainer(ctx context.Context, containerID, srcPath, dstPath string) error
 	ExecCommand(ctx context.Context, containerID string, cmd string) (ExecCommandResp, error)
 }

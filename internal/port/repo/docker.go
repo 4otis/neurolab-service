@@ -11,5 +11,5 @@ type ExecCommandResp struct {
 type DockerRepo interface {
 	CreateContainer(ctx context.Context, imageName string, mnts []*string) (string, error)
 	DeleteContainer(ctx context.Context, containerID string) error
-	ExecCommand(ctx context.Context, containerID string, cmd string) (ExecCommandResp, error)
+	ExecCommand(ctx context.Context, containerID string, cmd []string) (ExecCommandResp, error)
 }

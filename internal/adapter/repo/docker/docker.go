@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
 )
 
 var _ repo.DockerRepo = (*DockerRepo)(nil)
@@ -58,13 +60,75 @@ func (r *DockerRepo) CreateContainer(ctx context.Context, imageName string, mnts
 		return "", fmt.Errorf("failed to create container using docker client: %w", err)
 	}
 
+	if err := r.dockerClient.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+		r.dockerClient.ContainerRemove(ctx, resp.ID, container.RemoveOptions{})
+		return "", fmt.Errorf("container start failed: %w", err)
+	}
+
 	return resp.ID, nil
 }
 
 func (r *DockerRepo) DeleteContainer(ctx context.Context, containerID string) error {
+	r.dockerClient.ContainerRemove(ctx, containerID, container.RemoveOptions{
+		RemoveVolumes: true,
+		Force:         true,
+	})
+
 	return nil
 }
 
-func (r *DockerRepo) ExecCommand(ctx context.Context, containerID string, cmd string) (repo.ExecCommandResp, error) {
-	return repo.ExecCommandResp{}, nil
+func (r *DockerRepo) ExecCommand(ctx context.Context, containerID string, cmd []string) (repo.ExecCommandResp, error) {
+	execConfig := container.ExecOptions{
+		AttachStdout: true,
+		AttachStderr: true,
+		Cmd:          cmd,
+	}
+
+	execResp, err := r.dockerClient.ContainerExecCreate(ctx, containerID, execConfig)
+	if err != nil {
+		return repo.ExecCommandResp{
+			StatusCode: -1,
+		}, fmt.Errorf("failed to create container exec: %w", err)
+	}
+
+	attachResp, err := r.dockerClient.ContainerExecAttach(ctx, execResp.ID, container.ExecStartOptions{})
+	if err != nil {
+		return repo.ExecCommandResp{
+			StatusCode: -1,
+		}, fmt.Errorf("failed to attach container exec: %w", err)
+	}
+	defer attachResp.Close()
+
+	var outBuf, errBuf bytes.Buffer
+	outputDone := make(chan error)
+	go func() {
+		defer close(outputDone)
+		_, err := stdcopy.StdCopy(&outBuf, &errBuf, attachResp.Reader)
+		outputDone <- err
+	}()
+
+	select {
+	case err := <-outputDone:
+		if err != nil {
+			return repo.ExecCommandResp{StatusCode: -1},
+				fmt.Errorf("failed to copy multiplexed stream: %w", err)
+		}
+	case <-ctx.Done():
+		return repo.ExecCommandResp{StatusCode: -1}, ctx.Err()
+	}
+
+	inspectResp, err := r.dockerClient.ContainerExecInspect(ctx, execResp.ID)
+	if err != nil {
+		return repo.ExecCommandResp{
+			StdOut:     outBuf.String(),
+			StdErr:     errBuf.String(),
+			StatusCode: -1,
+		}, fmt.Errorf("ContainerExecInspect: %w", err)
+	}
+
+	return repo.ExecCommandResp{
+		StdOut:     outBuf.String(),
+		StdErr:     errBuf.String(),
+		StatusCode: inspectResp.ExitCode,
+	}, nil
 }

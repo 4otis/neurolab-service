@@ -32,9 +32,9 @@ func (r *DockerRepo) CreateContainer(ctx context.Context, imageName string, mnts
 	for i, path := range mnts {
 		var target string
 		if i == 0 { // first element should be solution
-			target = "app/solutions"
+			target = "/app/solutions"
 		} else {
-			target = "app/scripts"
+			target = "/app/scripts"
 		}
 		m = append(m, mount.Mount{
 			Type:     mount.TypeBind,

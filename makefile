@@ -11,6 +11,12 @@ run:
 build:
 	go build -o bin/neurolab-service cmd/main.go
 
+build-docker:
+	echo "Building checker-python:1.0..."
+	docker build -t checker-python:1.0 -f data/docker/checker-python/Dockerfile .
+	echo "Building checker-golang:1.0..."
+	docker build -t checker-golang:1.0 -f data/docker/checker-golang/Dockerfile .
+
 dev:
 	docker-compose up -d postgres
 

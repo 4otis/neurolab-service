@@ -3,6 +3,7 @@ package cases
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -69,18 +70,37 @@ func (uc *AutotestUseCaseImpl) Process(ctx context.Context, req *entity.Pipeline
 		return pipelineResp, fmt.Errorf("failed to read pipeline execute plan:%w", err)
 	}
 
-	scripts := strings.Split(lab.Pipeline, "->") //TODO: впоследствии поменять
-	image := uc.dockerConfig[lab.Lang]           //TODO: впоследствии поменять
+	scripts := strings.Split(lab.Pipeline, "->")
+	image := uc.dockerConfig[lab.Lang]
 
-	mnts := make([]*string, 0, len(scripts))
-	//mnts[0] should be solution path
-	mnts = append(mnts, &req.Path)
-	for _, s := range scripts {
-		scriptPath := uc.scriptsDir + s
-		mnts = append(mnts, &scriptPath)
+	mnts := make([]*string, 0, len(scripts)+1)
+
+	absSolutionPath, err := filepath.Abs(req.Path)
+	if err != nil {
+		uc.logger.Error("failed to get absolute path for solution", zap.Error(err))
+		return pipelineResp, fmt.Errorf("invalid solution path: %w", err)
 	}
+	mnts = append(mnts, &absSolutionPath)
 
-	// containerID, err := uc.dockerRepo.CreateContainer(ctx, image, solution, scripts)
+	absScriptsPath, err := filepath.Abs(uc.scriptsDir)
+	if err != nil {
+		uc.logger.Error("failed to get absolute path for scripts folder", zap.Error(err))
+		return pipelineResp, fmt.Errorf("invalid scripts path: %w", err)
+	}
+	mnts = append(mnts, &absScriptsPath)
+
+	// for _, s := range scripts {
+	// 	scriptFullPath := filepath.Join(uc.scriptsDir, s)
+	// 	absScriptPath, err := filepath.Abs(scriptFullPath)
+	// 	if err != nil {
+	// 		uc.logger.Error("failed to get absolute path for script", zap.String("script", s), zap.Error(err))
+	// 		return pipelineResp, fmt.Errorf("invalid script path: %w", err)
+	// 	}
+	// 	mnts = append(mnts, &absScriptPath)
+	// }
+
+	uc.logger.Debug("show mounts", zap.Any("mnts", mnts))
+
 	containerID, err := uc.dockerRepo.CreateContainer(ctx, image, mnts)
 	if err != nil {
 		uc.logger.Error("failed to create container",
@@ -89,12 +109,18 @@ func (uc *AutotestUseCaseImpl) Process(ctx context.Context, req *entity.Pipeline
 		)
 		return pipelineResp, fmt.Errorf("failed to create container:%w", err)
 	}
+	defer func() {
+		if rmErr := uc.dockerRepo.DeleteContainer(ctx, containerID); rmErr != nil {
+			uc.logger.Error("failed to remove container", zap.String("container_id", containerID), zap.Error(rmErr))
+		}
+	}()
 
 	for _, s := range scripts {
-		resp, err := uc.dockerRepo.ExecCommand(ctx, containerID, []string{fmt.Sprintf("app/scripts/%s/run.sh", s)})
+		cmd := []string{fmt.Sprintf("/app/scripts/%s/run.sh", s)}
+		resp, err := uc.dockerRepo.ExecCommand(ctx, containerID, cmd)
 		if err != nil {
-			uc.logger.Error("failed to exec command", zap.String("cmd",
-				fmt.Sprintf("app/scripts/%s/run.sh", s)),
+			uc.logger.Error("failed to exec command",
+				zap.String("cmd", cmd[0]),
 				zap.Error(err),
 			)
 			return pipelineResp, err
@@ -106,7 +132,6 @@ func (uc *AutotestUseCaseImpl) Process(ctx context.Context, req *entity.Pipeline
 				zap.String("script", s),
 				zap.Any("resp", resp),
 			)
-
 			pipelineResp.IsSuccess = false
 			break
 		} else {

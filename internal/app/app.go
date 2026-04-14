@@ -7,10 +7,13 @@ import (
 
 	_ "github.com/4otis/geonotify-service/docs"
 	"github.com/4otis/neurolab-service/config"
+	"github.com/4otis/neurolab-service/internal/adapter/repo/docker"
+	"github.com/4otis/neurolab-service/internal/adapter/repo/postgres"
 	"github.com/4otis/neurolab-service/internal/cases"
 	"github.com/4otis/neurolab-service/internal/entity"
-	httphandler "github.com/4otis/neurolab-service/internal/handler"
+	httphandler "github.com/4otis/neurolab-service/internal/handler/http"
 	"github.com/4otis/neurolab-service/pkg/logger"
+	"github.com/docker/docker/client"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -19,11 +22,14 @@ import (
 )
 
 type App struct {
-	config     config.Config
-	logger     *zap.Logger
-	httpServer *http.Server
-	dbPool     *pgxpool.Pool
-	pipelineCh chan entity.PipelineReq
+	config       config.Config
+	logger       *zap.Logger
+	httpServer   *http.Server
+	dbPool       *pgxpool.Pool
+	pipelineInCh chan entity.PipelineReq
+	// pipelineOutCh chan entity.PipelineResp
+	wp           *cases.WorkerPool
+	dockerClient *client.APIClient
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -42,7 +48,7 @@ func New(cfg *config.Config) (*App, error) {
 	// }
 
 	buf := 1000 // pipelineCh buffer size
-	if err := app.initPipelineProcessor(buf); err != nil {
+	if err := app.initPipelineProcessors(buf); err != nil {
 		return nil, err
 	}
 
@@ -70,10 +76,38 @@ func (a *App) initDB() error {
 	return nil
 }
 
-func (a *App) initPipelineProcessor(bufSize int) error {
-	a.pipelineCh = make(chan entity.PipelineReq, bufSize)
+func (a *App) initPipelineProcessors(bufSize int) error {
+	pipelineInCh := make(chan entity.PipelineReq, bufSize)
+	pipelineOutCh := make(chan entity.PipelineResp, bufSize)
 
-	// TODO: инициализация воркер пула
+	a.pipelineInCh = pipelineInCh
+
+	labRepo := &postgres.LabRepo{}
+	cli, err := client.NewClientWithOpts(
+		client.FromEnv,
+		client.WithAPIVersionNegotiation(),
+	)
+	if err != nil {
+		return err
+	}
+	dockerRepo := docker.NewDockerRepo(cli)
+
+	autotestUseCase := cases.NewAutotestUseCase(
+		a.logger,
+		labRepo,
+		dockerRepo,
+		a.config.SolutionsDir,
+		a.config.ScriptsDir,
+	)
+
+	a.wp = cases.NewWorkerPool(
+		bufSize,
+		pipelineInCh,
+		pipelineOutCh,
+		a.logger,
+		autotestUseCase,
+	)
+
 	return nil
 }
 
@@ -81,7 +115,7 @@ func (a *App) initUseCasesAndHandlers() error {
 
 	uploadUseCase := cases.NewUploadUseCase(
 		a.logger,
-		a.pipelineCh,
+		a.pipelineInCh,
 		a.config.SolutionsDir,
 		a.config.ScriptsDir,
 	)
@@ -102,10 +136,10 @@ func (a *App) initUseCasesAndHandlers() error {
 
 			r.Route("/course/{course_id}", func(r chi.Router) {
 
-				r.Route("/lab/{lab_id}", func(r chi.Router) {
+			})
+			r.Route("/lab/{lab_id}", func(r chi.Router) {
 
-					r.Post("/upload", httpStudentHandler.UploadLab)
-				})
+				r.Post("/upload", httpStudentHandler.UploadLab)
 			})
 		})
 
@@ -136,7 +170,13 @@ func (a *App) initUseCasesAndHandlers() error {
 	return nil
 }
 
-func (a *App) Run() error {
+func (a *App) Start() error {
+	ctx := context.Background()
+
+	go func() {
+		a.wp.Start(ctx)
+	}()
+
 	go func() {
 		a.logger.Info("Starting HTTP server",
 			zap.String("port", a.config.HTTPPort),

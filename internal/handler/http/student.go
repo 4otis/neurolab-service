@@ -113,9 +113,9 @@ func (h *StudentHandler) UploadLab(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	zipFile, _, err := r.FormFile("solution.tar")
+	zipFile, _, err := r.FormFile("solution.zip")
 	if err != nil {
-		http.Error(w, "solution.tar is required", http.StatusBadRequest)
+		http.Error(w, "solution.zip is required", http.StatusBadRequest)
 		return
 	}
 	defer zipFile.Close()
@@ -148,61 +148,3 @@ func (h *StudentHandler) UploadLab(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(resp)
 }
-
-// TODO: не уверен, что система с нотификашками вообще будет работать так просто
-// // GetSubmissionResult возвращает результат проверки лабораторной работы
-// // @Summary      Получить результат проверки
-// // @Description  Получить статус по загруженной лабораторной работе
-// // @Tags         student
-// // @Accept       json
-// // @Produce      json
-// // @Security     ApiKeyAuth
-// // @Param        student_id      path      string  true  "ID студента"
-// // @Param        submission_id   query     string  true  "ID сдачи"
-// // @Success      200             {object}  response.SubmissionStatusResponse
-// // @Failure      400             {string}  string  "Неверный формат данных"
-// // @Failure      401             {string}  string  "Не авторизован"
-// // @Failure      403             {string}  string  "Доступ запрещен"
-// // @Failure      404             {string}  string  "Сдача не найдена"
-// // @Failure      500             {string}  string  "Внутренняя ошибка сервера"
-// // @Router       /api/student/{student_id}/submission [get]
-// func (h *StudentHandler) GetSubmissionResult(w http.ResponseWriter, r *http.Request) {
-// 	studentID := r.PathValue("student_id")
-// 	if studentID == "" {
-// 		http.Error(w, "student_id is required", http.StatusBadRequest)
-// 		return
-// 	}
-
-// 	submissionID := r.URL.Query().Get("submission_id")
-// 	if submissionID == "" {
-// 		http.Error(w, "submission_id is required", http.StatusBadRequest)
-// 		return
-// 	}
-
-// 	submission, err := h.uc.GetSubmission(r.Context(), submissionID)
-// 	if err != nil {
-// 		h.logger.Error("failed to get submission",
-// 			zap.String("submission_id", submissionID),
-// 			zap.Error(err))
-// 		http.Error(w, "submission not found", http.StatusNotFound)
-// 		return
-// 	}
-
-// 	if submission.StudentID != studentID {
-// 		h.logger.Warn("access denied to submission",
-// 			zap.String("student_id", studentID),
-// 			zap.String("submission_owner", submission.StudentID),
-// 			zap.String("submission_id", submissionID))
-// 		http.Error(w, "access denied", http.StatusForbidden)
-// 		return
-// 	}
-
-// 	resp := response.SubmissionStatusResponse{
-// 		SubmissionID: submission.ID,
-// 		Status:       submission.Status,
-// 		UploadedAt:   submission.SubmittedAt,
-// 	}
-
-// 	w.Header().Set("Content-Type", "application/json")
-// 	json.NewEncoder(w).Encode(resp)
-// }

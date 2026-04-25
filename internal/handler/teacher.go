@@ -82,26 +82,3 @@ func (h *TeacherHandler) UploadScript(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(resp)
 }
-
-func (h *TeacherHandler) GenerateLab(w http.ResponseWriter, r *http.Request) {
-	var req request.GenerateLabRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-
-	if req.Subject == "" || req.Topic == "" || req.Title == "" {
-		http.Error(w, "missing required fields", http.StatusBadRequest)
-		return
-	}
-
-	res, err := h.teacherLabUseCase.GenerateLab(r.Context(), req)
-	if err != nil {
-		h.logger.Error("failed to generate lab", zap.Error(err))
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(res)
-}

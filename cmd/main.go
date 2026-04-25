@@ -24,9 +24,9 @@ func main() {
 		log.Fatalf("failed to create application: %v", err)
 	}
 
-	err = application.Run()
+	err = application.Start()
 	if err != nil {
-		log.Fatalf("error while running app: %v", err)
+		log.Fatalf("error while starting app: %v", err)
 	}
 
 	stop := make(chan os.Signal, 1)

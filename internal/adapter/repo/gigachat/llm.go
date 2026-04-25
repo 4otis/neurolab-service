@@ -27,9 +27,12 @@ type LLMRepo struct {
 	mu        sync.RWMutex
 }
 
-func NewLLMRepo() *LLMRepo {
+// TODO: параметр - ключ, передать в клиент
+func NewLLMRepo(secret string) *LLMRepo {
+	client := gigachat.NewGigachat()
+	client.AuthData = secret
 	return &LLMRepo{
-		client:    gigachat.NewGigachat(),
+		client:    client,
 		histories: make(map[string][]gigachat.MessageRequest),
 	}
 }

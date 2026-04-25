@@ -8,6 +8,7 @@ import (
 	_ "github.com/4otis/geonotify-service/docs"
 	"github.com/4otis/neurolab-service/config"
 	"github.com/4otis/neurolab-service/internal/adapter/repo/docker"
+	"github.com/4otis/neurolab-service/internal/adapter/repo/gigachat"
 	"github.com/4otis/neurolab-service/internal/adapter/repo/postgres"
 	"github.com/4otis/neurolab-service/internal/cases"
 	"github.com/4otis/neurolab-service/internal/entity"
@@ -128,10 +129,10 @@ func (a *App) initUseCasesAndHandlers() error {
 
 	// teacherLabUseCase := cases.NewTeacherLabUseCase(llmClient)
 
-	llmRepo := gigachat.NewLLMRepo()
+	llmRepo := gigachat.NewLLMRepo(a.config.LLMSecret)
 	llmUseCase := cases.NewLLMUseCase(
 		a.logger,
-		llmRepo
+		llmRepo,
 	)
 
 	llmHandler := httphandler.NewLLMHandler(llmUseCase)

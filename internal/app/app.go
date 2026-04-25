@@ -10,6 +10,7 @@ import (
 	"github.com/4otis/neurolab-service/internal/adapter/repo/docker"
 	"github.com/4otis/neurolab-service/internal/adapter/repo/postgres"
 	"github.com/4otis/neurolab-service/internal/cases"
+	"github.com/4otis/neurolab-service/internal/clients"
 	"github.com/4otis/neurolab-service/internal/entity"
 	httphandler "github.com/4otis/neurolab-service/internal/handler/http"
 	"github.com/4otis/neurolab-service/pkg/logger"
@@ -120,9 +121,23 @@ func (a *App) initUseCasesAndHandlers() error {
 		a.config.ScriptsDir,
 	)
 
+	llmClient := clients.NewLLMClient(
+		a.config.LLMBaseURL,
+		a.config.LLMToken,
+		a.config.LLMModel,
+	)
+
+	teacherLabUseCase := cases.NewTeacherLabUseCase(llmClient)
+
 	httpStudentHandler := httphandler.NewStudentHandler(
 		a.logger,
 		uploadUseCase,
+	)
+
+	httpTeacherHandler := httphandler.NewTeacherHandler(
+		a.logger,
+		uploadUseCase,
+		teacherLabUseCase,
 	)
 
 	r := chi.NewRouter()
@@ -130,34 +145,40 @@ func (a *App) initUseCasesAndHandlers() error {
 	r.Use(logger.Log(a.logger))
 	r.Use(middleware.Timeout(30 * time.Second))
 
-	r.Route("/api/v1/homepage", func(r chi.Router) {
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Route("/homepage", func(r chi.Router) {
 
-		r.Route("/student/{student_id}", func(r chi.Router) {
+			r.Route("/student/{student_id}", func(r chi.Router) {
 
-			r.Route("/course/{course_id}", func(r chi.Router) {
+				r.Route("/course/{course_id}", func(r chi.Router) {
 
 			})
 			r.Route("/lab/{lab_id}", func(r chi.Router) {
 
 				r.Post("/upload", httpStudentHandler.UploadLab)
 			})
-		})
 
-		r.Route("/teacher/{teacher_id}", func(r chi.Router) {
+			r.Route("/teacher/{teacher_id}", func(r chi.Router) {
 
-			r.Route("/course/{course_id}", func(r chi.Router) {
+				r.Route("/course/{course_id}", func(r chi.Router) {
 
-				r.Route("/lab/{lab_id}", func(r chi.Router) {
+					r.Route("/lab/{lab_id}", func(r chi.Router) {
 
-					// TODO: замени на соответствующие методы TeacherHandler
-					r.Patch("/save", httpStudentHandler.UploadLab)
-					r.Get("/generate", httpStudentHandler.UploadLab)
-					r.Get("/scripts", httpStudentHandler.UploadLab)
-					r.Post("/upload", httpStudentHandler.UploadLab)
+						// TODO: замени на соответствующие методы TeacherHandler
+						r.Patch("/save", httpStudentHandler.UploadLab)
+						r.Get("/generate", httpStudentHandler.UploadLab)
+						r.Get("/scripts", httpStudentHandler.UploadLab)
+						r.Post("/upload", httpStudentHandler.UploadLab)
+						r.Post("/generate", httpTeacherHandler.GenerateLab)
+					})
 				})
 			})
+
 		})
 
+		r.Route("/scripts", func(r chi.Router) {
+			r.Post("/upload", httpTeacherHandler.UploadScript)
+		})
 	})
 
 	r.Get("/swagger/*", httpSwagger.WrapHandler)

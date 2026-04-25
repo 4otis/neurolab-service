@@ -5,26 +5,22 @@ import (
 	"net/http"
 
 	"github.com/4otis/neurolab-service/internal/cases"
-	"github.com/4otis/neurolab-service/internal/dto/request"
 	"github.com/4otis/neurolab-service/internal/dto/response"
 	"go.uber.org/zap"
 )
 
 type TeacherHandler struct {
-	logger            *zap.Logger
-	uploadUseCase     cases.UploadUseCase
-	teacherLabUseCase cases.TeacherLabUseCase
+	logger        *zap.Logger
+	uploadUseCase cases.UploadUseCase
 }
 
 func NewTeacherHandler(
 	logger *zap.Logger,
 	uploadUseCase cases.UploadUseCase,
-	teacherLabUseCase cases.TeacherLabUseCase,
 ) *TeacherHandler {
 	return &TeacherHandler{
-		logger:            logger,
-		uploadUseCase:     uploadUseCase,
-		teacherLabUseCase: teacherLabUseCase,
+		logger:        logger,
+		uploadUseCase: uploadUseCase,
 	}
 }
 

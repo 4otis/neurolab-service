@@ -10,9 +10,8 @@ import (
 	"github.com/4otis/neurolab-service/internal/adapter/repo/docker"
 	"github.com/4otis/neurolab-service/internal/adapter/repo/postgres"
 	"github.com/4otis/neurolab-service/internal/cases"
-	"github.com/4otis/neurolab-service/internal/clients"
 	"github.com/4otis/neurolab-service/internal/entity"
-	httphandler "github.com/4otis/neurolab-service/internal/handler/http"
+	httphandler "github.com/4otis/neurolab-service/internal/handler"
 	"github.com/4otis/neurolab-service/pkg/logger"
 	"github.com/docker/docker/client"
 	"github.com/go-chi/chi"
@@ -121,13 +120,13 @@ func (a *App) initUseCasesAndHandlers() error {
 		a.config.ScriptsDir,
 	)
 
-	llmClient := clients.NewLLMClient(
-		a.config.LLMBaseURL,
-		a.config.LLMToken,
-		a.config.LLMModel,
-	)
+	// llmClient := clients.NewLLMClient(
+	// 	a.config.LLMBaseURL,
+	// 	a.config.LLMToken,
+	// 	a.config.LLMModel,
+	// )
 
-	teacherLabUseCase := cases.NewTeacherLabUseCase(llmClient)
+	// teacherLabUseCase := cases.NewTeacherLabUseCase(llmClient)
 
 	httpStudentHandler := httphandler.NewStudentHandler(
 		a.logger,
@@ -137,7 +136,7 @@ func (a *App) initUseCasesAndHandlers() error {
 	httpTeacherHandler := httphandler.NewTeacherHandler(
 		a.logger,
 		uploadUseCase,
-		teacherLabUseCase,
+		// teacherLabUseCase,
 	)
 
 	r := chi.NewRouter()
@@ -152,10 +151,13 @@ func (a *App) initUseCasesAndHandlers() error {
 
 				r.Route("/course/{course_id}", func(r chi.Router) {
 
-			})
-			r.Route("/lab/{lab_id}", func(r chi.Router) {
+				})
 
-				r.Post("/upload", httpStudentHandler.UploadLab)
+				r.Route("/lab/{lab_id}", func(r chi.Router) {
+
+					r.Post("/upload", httpStudentHandler.UploadLab)
+				})
+
 			})
 
 			r.Route("/teacher/{teacher_id}", func(r chi.Router) {
@@ -169,7 +171,7 @@ func (a *App) initUseCasesAndHandlers() error {
 						r.Get("/generate", httpStudentHandler.UploadLab)
 						r.Get("/scripts", httpStudentHandler.UploadLab)
 						r.Post("/upload", httpStudentHandler.UploadLab)
-						r.Post("/generate", httpTeacherHandler.GenerateLab)
+						// r.Post("/generate", httpTeacherHandler.GenerateLab)
 					})
 				})
 			})

@@ -14,6 +14,10 @@ type Config struct {
 	LogLevel     string
 	SolutionsDir string
 	ScriptsDir   string
+
+	LLMBaseURL string
+	LLMToken   string
+	LLMModel   string
 }
 
 func Load() *Config {
@@ -28,6 +32,10 @@ func Load() *Config {
 		DBURL:        getDBURL(),
 		SolutionsDir: getEnv("SOLUTIONS_DIR", ""),
 		ScriptsDir:   getEnv("SCRIPTS_DIR", ""),
+
+		LLMBaseURL: getEnv("LLM_BASE_URL", "https://gigachat.devices.sberbank.ru"),
+		LLMToken:   getEnv("GIGACHAT_ACCESS_TOKEN", ""),
+		LLMModel:   getEnv("LLM_MODEL", "GigaChat"),
 	}
 }
 

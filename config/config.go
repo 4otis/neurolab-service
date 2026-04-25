@@ -9,9 +9,11 @@ import (
 )
 
 type Config struct {
-	HTTPPort string
-	DBURL    string
-	LogLevel string
+	HTTPPort     string
+	DBURL        string
+	LogLevel     string
+	SolutionsDir string
+	ScriptsDir   string
 }
 
 func Load() *Config {
@@ -21,9 +23,11 @@ func Load() *Config {
 	}
 
 	return &Config{
-		HTTPPort: getEnv("HTTP_PORT", "8080"),
-		LogLevel: getEnv("LOG_LEVEL", "info"),
-		DBURL:    getDBURL(),
+		HTTPPort:     getEnv("HTTP_PORT", "8080"),
+		LogLevel:     getEnv("LOG_LEVEL", "info"),
+		DBURL:        getDBURL(),
+		SolutionsDir: getEnv("SOLUTIONS_DIR", ""),
+		ScriptsDir:   getEnv("SCRIPTS_DIR", ""),
 	}
 }
 

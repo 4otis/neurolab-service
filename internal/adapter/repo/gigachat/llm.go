@@ -29,8 +29,8 @@ type LLMRepo struct {
 
 func NewLLMRepo() *LLMRepo {
 	return &LLMRepo{
-		// client:    gigachat.NewGigachat(),
-		// histories: make(map[string][]gigachat.MessageRequest),
+		client:    gigachat.NewGigachat(),
+		histories: make(map[string][]gigachat.MessageRequest),
 	}
 }
 

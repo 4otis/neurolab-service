@@ -128,6 +128,14 @@ func (a *App) initUseCasesAndHandlers() error {
 
 	// teacherLabUseCase := cases.NewTeacherLabUseCase(llmClient)
 
+	llmRepo := gigachat.NewLLMRepo()
+	llmUseCase := cases.NewLLMUseCase(
+		a.logger,
+		llmRepo
+	)
+
+	llmHandler := httphandler.NewLLMHandler(llmUseCase)
+
 	httpStudentHandler := httphandler.NewStudentHandler(
 		a.logger,
 		uploadUseCase,
@@ -144,6 +152,7 @@ func (a *App) initUseCasesAndHandlers() error {
 	r.Use(logger.Log(a.logger))
 	r.Use(middleware.Timeout(30 * time.Second))
 
+	r.Post("/test/generate", llmHandler.GenerateCourse)
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Route("/homepage", func(r chi.Router) {
 

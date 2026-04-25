@@ -7,3 +7,7 @@ type UploadScriptResponse struct {
 	ScriptName string `json:"script_name"`
 	ScriptPath string `json:"script_path"`
 }
+
+type GenerateLabResponse struct {
+	Markdown string `json:"markdown"`
+}

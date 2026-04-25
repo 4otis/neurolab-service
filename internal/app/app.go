@@ -8,6 +8,7 @@ import (
 	_ "github.com/4otis/geonotify-service/docs"
 	"github.com/4otis/neurolab-service/config"
 	"github.com/4otis/neurolab-service/internal/cases"
+	"github.com/4otis/neurolab-service/internal/clients"
 	"github.com/4otis/neurolab-service/internal/entity"
 	httphandler "github.com/4otis/neurolab-service/internal/handler"
 	"github.com/4otis/neurolab-service/pkg/logger"
@@ -86,6 +87,14 @@ func (a *App) initUseCasesAndHandlers() error {
 		a.config.ScriptsDir,
 	)
 
+	llmClient := clients.NewLLMClient(
+		a.config.LLMBaseURL,
+		a.config.LLMToken,
+		a.config.LLMModel,
+	)
+
+	teacherLabUseCase := cases.NewTeacherLabUseCase(llmClient)
+
 	httpStudentHandler := httphandler.NewStudentHandler(
 		a.logger,
 		uploadUseCase,
@@ -94,6 +103,7 @@ func (a *App) initUseCasesAndHandlers() error {
 	httpTeacherHandler := httphandler.NewTeacherHandler(
 		a.logger,
 		uploadUseCase,
+		teacherLabUseCase,
 	)
 
 	r := chi.NewRouter()
@@ -126,6 +136,7 @@ func (a *App) initUseCasesAndHandlers() error {
 						r.Get("/generate", httpStudentHandler.UploadLab)
 						r.Get("/scripts", httpStudentHandler.UploadLab)
 						r.Post("/upload", httpStudentHandler.UploadLab)
+						r.Post("/generate", httpTeacherHandler.GenerateLab)
 					})
 				})
 			})

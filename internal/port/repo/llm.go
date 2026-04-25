@@ -1,5 +1,7 @@
 package repo
 
+import "context"
+
 type LLMRepo interface {
-	// доступные методы
+	Generate(ctx context.Context, sysP, usrP string) (rawResp string, err error)
 }
